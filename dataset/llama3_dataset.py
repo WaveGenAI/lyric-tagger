@@ -25,9 +25,11 @@ A module that contains the Flant5 dataset class.
 
 import json
 import os
+import random
 import typing
 
 import torch
+from random_word import RandomWords
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 import enums
@@ -65,6 +67,7 @@ class Llama3Dataset(LyricsDataset):
     
     The N indicates the number of the section. For example, [CHORUS 1] indicates the first chorus of the song. 
     Don't include any other text that the lyrics and the tags. Don't use any other tags than the ones mentioned.
+    The lyrics should be generated based on the word "{WORD}" and have to contain the word at the 5th word of the lyrics.
     """
 
     def __init__(
@@ -85,7 +88,7 @@ class Llama3Dataset(LyricsDataset):
         self._json_path = json_path
         self._paths = paths
         self._tags = enums.Tag
-
+        self._word_generator = RandomWords()
         self._construct_json()
         super().__init__(json_path)
 
@@ -95,7 +98,6 @@ class Llama3Dataset(LyricsDataset):
         """
 
         data = {}
-
         idx = 0
 
         # for each file in the paths, read the content and store it in the data dictionary
@@ -138,19 +140,22 @@ class Llama3Dataset(LyricsDataset):
         for tag in self._tags:
             tags += f"[{tag.value} N]\n"
 
-        messages = [
-            {
-                "role": "system",
-                "content": "You are a chatbot that generates lyrics.",
-            },
-            {
-                "role": "user",
-                "content": self.PROMPT.format(TAGS=tags),
-            },
-        ]
-
         # generate the number of lyrics specified
         for i in range(nb_gen):
+            # add word to obtain different lyrics each time
+            word = " ".join(self._word_generator.get_random_word() for _ in range(1))
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are a chatbot that generates lyrics.",
+                },
+                {
+                    "role": "user",
+                    "content": self.PROMPT.format(TAGS=tags, WORD=word),
+                },
+            ]
+
             prompt = tokenizer.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=True
             )
@@ -162,7 +167,7 @@ class Llama3Dataset(LyricsDataset):
                 max_length=500,
                 num_return_sequences=1,
                 do_sample=True,
-                temperature=0.7,
+                temperature=0.9,
             )
             generated_text = tokenizer.decode(output[0], skip_special_tokens=False)
 
@@ -179,5 +184,8 @@ class Llama3Dataset(LyricsDataset):
                 encoding="utf-8",
             ) as f:
                 f.write(generated_text)
+
+            if i % 10 == 0:
+                self._construct_json()
 
         self._construct_json()
