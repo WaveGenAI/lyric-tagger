@@ -164,3 +164,6 @@ data/
 
 # remove test functions
 test.py
+
+# remove training dir
+training/
