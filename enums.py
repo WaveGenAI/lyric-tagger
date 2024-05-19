@@ -31,5 +31,5 @@ class Tag(Enum):
     Class that contains all the tags for the lyrics.
     """
 
-    CHORUS = "Chorus"
-    VERSE = "Verse"
+    CHORUS = "CHORUS"
+    VERSE = "VERSE"

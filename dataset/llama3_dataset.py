@@ -30,6 +30,7 @@ import typing
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
+import enums
 from dataset.dataset import LyricsDataset
 
 
@@ -59,12 +60,11 @@ class Llama3Dataset(LyricsDataset):
     """
 
     PROMPT = """
-    Generate random song lyrics with specific tags indicating the different sections of the song. The tags you can use are:
-
-    [CHORUS]
-    [VERSE]
-
-    If there are multiple tag of the same type, make sure to number them sequentially. For example, [VERSE 1], [VERSE 2], [VERSE 3].
+    Generate the lyric of a song with specific tags indicating the different sections of the song. The tags that you are allowed to use are the following:
+    {TAGS}
+    
+    The N indicates the number of the section. For example, [CHORUS 1] indicates the first chorus of the song. 
+    Don't include any other text that the lyrics and the tags. Don't use any other tags than the ones mentioned.
     """
 
     def __init__(
@@ -84,6 +84,7 @@ class Llama3Dataset(LyricsDataset):
 
         self._json_path = json_path
         self._paths = paths
+        self._tags = enums.Tag
 
         self._construct_json()
         super().__init__(json_path)
@@ -96,6 +97,8 @@ class Llama3Dataset(LyricsDataset):
         data = {}
 
         idx = 0
+
+        # for each file in the paths, read the content and store it in the data dictionary
         for path in self._paths:
             for file in os.listdir(path):
                 if file.endswith(".txt"):
@@ -115,25 +118,45 @@ class Llama3Dataset(LyricsDataset):
 
         model, tokenizer = _setup_model()
 
+        # include the tags in the prompt from the enums
+        tags = ""
+        for tag in self._tags:
+            tags += f"[{tag.value} N]\n"
+
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a chatbot that generates lyrics.",
+            },
+            {
+                "role": "user",
+                "content": self.PROMPT.format(TAGS=tags),
+            },
+        ]
+
+        # generate the number of lyrics specified
         for i in range(nb_gen):
-            input_ids = tokenizer.encode(self.PROMPT, return_tensors="pt").to(
-                model.device
-            )
-            output = model.generate(
-                input_ids,
-                max_length=500,
-                num_return_sequences=1,
-                temperature=0.6,
-                do_sample=True,
+            prompt = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
             )
 
-            generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+            input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
+
+            output = model.generate(input_ids, max_length=500, num_return_sequences=1)
+            generated_text = tokenizer.decode(output[0], skip_special_tokens=False)
+
+            # remove the prompt and the special tokens
+            generated_text = (
+                generated_text.replace(prompt, "")
+                .replace("<|begin_of_text|>", "")
+                .replace("<|eot_id|>", "")
+            )
 
             with open(
                 os.path.join(self._paths[0], f"{i}.txt"),
                 "w",
                 encoding="utf-8",
             ) as f:
-                f.write(generated_text.replace(self.PROMPT, ""))
+                f.write(generated_text)
 
         self._construct_json()

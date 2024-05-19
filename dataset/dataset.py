@@ -43,7 +43,8 @@ def _remove_tags(text: str) -> str:
     """
 
     for tag in enums.Tag:
-        text = re.sub(rf"\[{tag.value} [0-9]*\]|\[{tag.value}\]", "", text)
+        text = re.sub(rf"\[{tag.value} [0-9]*\]|\[{tag.value}\]", "\n", text)
+        text = text.replace("\n\n\n", "\n")
     return text
 
 
