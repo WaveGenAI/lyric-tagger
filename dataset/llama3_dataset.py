@@ -109,6 +109,21 @@ class Llama3Dataset(LyricsDataset):
         with open(self._json_path, "w", encoding="utf-8") as f:
             json.dump(data, f)
 
+    def clean_lyrics(self, file_id: list = None) -> None:
+        """Function that cleans the lyrics from the dataset.
+
+        Args:
+            file_id (list, optional): the list of lyrics to delete, if empty delete everything. Defaults to [].
+        """
+
+        if file_id is None:
+            for file in os.listdir(self._paths[0]):
+                if file.endswith(".txt"):
+                    os.remove(os.path.join(self._paths[0], file))
+        else:
+            for idx in file_id:
+                os.remove(os.path.join(self._paths[0], f"{idx}.txt"))
+
     def generate_dataset(self, nb_gen: int = 100) -> None:
         """Function that generates the dataset.
 
@@ -142,7 +157,13 @@ class Llama3Dataset(LyricsDataset):
 
             input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
 
-            output = model.generate(input_ids, max_length=500, num_return_sequences=1)
+            output = model.generate(
+                input_ids,
+                max_length=500,
+                num_return_sequences=1,
+                do_sample=True,
+                temperature=0.7,
+            )
             generated_text = tokenizer.decode(output[0], skip_special_tokens=False)
 
             # remove the prompt and the special tokens
