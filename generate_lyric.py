@@ -5,8 +5,13 @@ A script that generates the lyrics for the dataset.
 from dataset.llama3_dataset import Llama3Dataset
 
 dataset = Llama3Dataset("data/")
-dataset.clean_lyrics()
-dataset.generate_dataset(10_000)
+data = dataset.load()
+
+for d in data["test"]:
+    print(d)
+
+
+# dataset.clean_lyrics()
 
 # test section
 #

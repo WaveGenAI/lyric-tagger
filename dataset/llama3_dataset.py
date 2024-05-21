@@ -69,47 +69,18 @@ class Llama3Dataset(LyricsDataset):
     The lyrics should be generated based on the word "{WORD}" and have to contain the word at the 5th word of the lyrics.
     """
 
-    def __init__(
-        self,
-        paths: typing.Union[str, typing.List[str]],
-        json_path: str = "./data/lyrics.json",
-    ) -> None:
+    def __init__(self, path: str) -> None:
         """The constructor for the Flant5 dataset.
 
         Args:
-            paths (typing.Union[str, typing.List[str]]): The path where the lyrics are stored.
-            json_path (str, optional): the json file that will be loaded by the parent class. Defaults to "./data/lyrics.json".
+            path (str): The path where the lyrics are stored.
         """
 
-        if isinstance(paths, str):
-            paths = [paths]
-
-        self._json_path = json_path
-        self._paths = paths
+        self._path = path
         self._tags = enums.Tag
         self._word_generator = RandomWords()
-        self._construct_json()
 
-        super().__init__(json_path)
-
-    def _construct_json(self) -> None:
-        """
-        Function that constructs the JSON file with the lyrics to be used in the dataset.
-        """
-
-        data = {}
-        idx = 0
-
-        # for each file in the paths, read the content and store it in the data dictionary
-        for path in self._paths:
-            for file in os.listdir(path):
-                if file.endswith(".txt"):
-                    with open(os.path.join(path, file), "r", encoding="utf-8") as f:
-                        data[idx] = f.read()
-                        idx += 1
-
-        with open(self._json_path, "w", encoding="utf-8") as f:
-            json.dump(data, f)
+        super().__init__(path)
 
     def clean_lyrics(self, file_id: list = None) -> None:
         """Function that cleans the lyrics from the dataset.
@@ -119,12 +90,12 @@ class Llama3Dataset(LyricsDataset):
         """
 
         if file_id is None:
-            for file in os.listdir(self._paths[0]):
+            for file in os.listdir(self._path):
                 if file.endswith(".txt"):
-                    os.remove(os.path.join(self._paths[0], file))
+                    os.remove(os.path.join(self._path, file))
         else:
             for idx in file_id:
-                os.remove(os.path.join(self._paths[0], f"{idx}.txt"))
+                os.remove(os.path.join(self._path, f"{idx}.txt"))
 
     def generate_dataset(self, nb_gen: int = 100) -> None:
         """Function that generates the dataset.
@@ -179,13 +150,8 @@ class Llama3Dataset(LyricsDataset):
             )
 
             with open(
-                os.path.join(self._paths[0], f"{i}.txt"),
+                os.path.join(self._path, f"{i}.txt"),
                 "w",
                 encoding="utf-8",
             ) as f:
                 f.write(generated_text)
-
-            if i % 10 == 0:
-                self._construct_json()
-
-        self._construct_json()

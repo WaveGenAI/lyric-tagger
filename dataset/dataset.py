@@ -23,13 +23,10 @@
 Module that contains the dataset class for the lyrics.
 """
 
-import json
 import re
 
-from torch.utils.data import Dataset
-
+import datasets
 import enums
-import exceptions
 
 
 def _remove_tags(text: str) -> str:
@@ -48,34 +45,32 @@ def _remove_tags(text: str) -> str:
     return text
 
 
-class LyricsDataset(Dataset):
-    """A class that represents the dataset that contains all the lyrics.
+class LyricsDataset:
+    """A class that represents the dataset that contains all the lyrics."""
 
-    Args:
-        Dataset (torch.utils.data.Dataset): The dataset class from PyTorch.
-    """
-
-    def __init__(self, json_path: str = "./data/lyrics.json") -> None:
+    def __init__(self, path: str) -> None:
         super().__init__()
-        self._data = None
+        self._path = path
 
-        try:
-            with open(json_path, "r", encoding="utf-8") as f:
-                self._data = json.load(f)
-        except json.JSONDecodeError as e:
-            raise exceptions.NotValidJsonFile(
-                f"{json_path} is not a valid JSON file."
-            ) from e
+    def load(self) -> datasets.dataset_dict.DatasetDict:
+        """Method that loads the dataset.
 
-    def __len__(self) -> int:
-        if self._data is None:
-            raise exceptions.NotLoadedJsonFile("JSON file is not loaded.")
+        Returns:
+            datasets.dataset_dict.DatasetDict: The dataset.
+        """
 
-        return len(self._data)
+        dataset = datasets.load_dataset(
+            "text", data_dir=self._path, sample_by="document", split="train"
+        )
 
-    def __getitem__(self, idx: int) -> str:
-        if self._data is None:
-            raise exceptions.NotLoadedJsonFile("JSON file is not loaded.")
+        dataset = dataset.map(
+            lambda x: {
+                "lyrics_no_tags": _remove_tags(x["text"]),
+                "lyrics": x["text"],
+            }
+        )
 
-        lyrics = self._data[str(idx)]
-        return lyrics, _remove_tags(lyrics)
+        test_size = min(int(len(dataset) * 0.2), 2000)
+        dataset = dataset.train_test_split(test_size=test_size)
+
+        return dataset

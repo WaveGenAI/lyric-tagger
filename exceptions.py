@@ -22,15 +22,3 @@
 
 """A module that contains all custom exceptions for the project.
 """
-
-
-class NotValidJsonFile(Exception):
-    """
-    Raised when the JSON file is not valid.
-    """
-
-
-class NotLoadedJsonFile(Exception):
-    """
-    Raised when the JSON file is not loaded in the dataset class.
-    """
