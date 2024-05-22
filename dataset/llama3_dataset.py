@@ -48,15 +48,8 @@ def _setup_model() -> typing.Tuple[AutoModelForCausalLM, AutoTokenizer]:
 
     tokenizer = AutoTokenizer.from_pretrained("unsloth/llama-3-8b-Instruct-bnb-4bit")
     model.generation_config.pad_token_ids = tokenizer.pad_token_id
-    )
 
-    model = AutoModelForCausalLM.from_pretrained(
-        "meta-llama/Meta-Llama-3-8B-Instruct", quantization_config=config
-    )
-
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B-Instruct")
-    model.generation_config.pad_token_ids = tokenizer.pad_token_id
-
+    return model, tokenizer
 
 
 class Llama3Dataset(LyricsDataset):
