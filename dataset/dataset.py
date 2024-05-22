@@ -24,6 +24,7 @@ Module that contains the dataset class for the lyrics.
 """
 
 import re
+import random
 
 import datasets
 import enums
@@ -42,6 +43,8 @@ def _remove_tags(text: str) -> str:
     for tag in enums.Tag:
         text = re.sub(rf"\[{tag.value} [0-9]*\]|\[{tag.value}\]", "\n", text)
         text = text.replace("\n\n\n", "\n")
+        if random.random() <= 0.5:
+            text = text.replace("\n\n", "").replace("\n", "")
     return text
 
 

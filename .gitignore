@@ -167,3 +167,6 @@ test.py
 
 # remove training dir
 training/
+model_fintuned/
+
+.idea/

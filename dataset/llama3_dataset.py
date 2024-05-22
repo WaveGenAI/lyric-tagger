@@ -23,13 +23,14 @@
 A module that contains the Flant5 dataset class.
 """
 
-import json
+
 import os
+import random
 import typing
 
 import torch
 from random_word import RandomWords
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 import enums
 from dataset.dataset import LyricsDataset
@@ -41,6 +42,12 @@ def _setup_model() -> typing.Tuple[AutoModelForCausalLM, AutoTokenizer]:
         bnb_4bit_quant_type="nf4",
         bnb_4bit_use_double_quant=True,
         bnb_4bit_compute_dtype=torch.bfloat16,
+    model = AutoModelForCausalLM.from_pretrained(
+        "unsloth/llama-3-8b-Instruct-bnb-4bit"
+    )
+
+    tokenizer = AutoTokenizer.from_pretrained("unsloth/llama-3-8b-Instruct-bnb-4bit")
+    model.generation_config.pad_token_ids = tokenizer.pad_token_id
     )
 
     model = AutoModelForCausalLM.from_pretrained(
@@ -50,7 +57,6 @@ def _setup_model() -> typing.Tuple[AutoModelForCausalLM, AutoTokenizer]:
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B-Instruct")
     model.generation_config.pad_token_ids = tokenizer.pad_token_id
 
-    return model, tokenizer
 
 
 class Llama3Dataset(LyricsDataset):
@@ -67,6 +73,9 @@ class Llama3Dataset(LyricsDataset):
     The N indicates the number of the section. For example, [CHORUS 1] indicates the first chorus of the song. 
     Don't include any other text that the lyrics and the tags. Don't use any other tags than the ones mentioned.
     The lyrics should be generated based on the word "{WORD}" and have to contain the word at the 5th word of the lyrics.
+    The number of chorus to generate is {NB_CHORUS}.
+    The number of verse to generate is {NB_VERSE}.
+    The number of bridge to generate is {NB_BRIDGE}.
     """
 
     def __init__(self, path: str) -> None:
@@ -112,10 +121,12 @@ class Llama3Dataset(LyricsDataset):
             tags += f"[{tag.value} N]\n"
 
         # generate the number of lyrics specified
-        for i in range(nb_gen):
+        for i in range(1000,1100):
             # add word to obtain different lyrics each time
             word = " ".join(self._word_generator.get_random_word() for _ in range(1))
-
+            nb_chorus = random.randint(2, 4)
+            nb_verse = random.randint(2, 4)
+            nb_bridge = random.randint(0, 1)
             messages = [
                 {
                     "role": "system",
@@ -123,32 +134,42 @@ class Llama3Dataset(LyricsDataset):
                 },
                 {
                     "role": "user",
-                    "content": self.PROMPT.format(TAGS=tags, WORD=word),
+                    "content": self.PROMPT.format(
+                        TAGS=tags,
+                        WORD=word,
+                        NB_CHORUS=nb_chorus,
+                        NB_VERSE=nb_verse,
+                        NB_BRIDGE=nb_bridge
+                    ),
                 },
             ]
 
-            prompt = tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
-            )
+            # prompt = tokenizer.apply_chat_template(
+            #     messages, tokenize=False, add_generation_prompt=True
+            # )
+            #
+            # input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
 
-            input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
+            # output = model.generate(
+            #     input_ids,
+            #     max_length=500,
+            #     num_return_sequences=1,
+            #     do_sample=True,
+            #     temperature=0.9,
+            # )
+            # generated_text = tokenizer.decode(output[0], skip_special_tokens=False)
 
-            output = model.generate(
-                input_ids,
-                max_length=500,
-                num_return_sequences=1,
-                do_sample=True,
-                temperature=0.9,
-            )
-            generated_text = tokenizer.decode(output[0], skip_special_tokens=False)
+            generated_text = model.create_chat_completion(messages)["choices"][0]["message"]["content"]
 
             # remove the prompt and the special tokens
-            generated_text = (
-                generated_text.replace(prompt, "")
-                .replace("<|begin_of_text|>", "")
-                .replace("<|eot_id|>", "")
-            )
+            # generated_text = (
+            #     generated_text.replace(prompt, "")
+            #     .replace("<|begin_of_text|>", "")
+            #     .replace("<|eot_id|>", "")
+            # )
 
+            if not os.path.exists(self._path):
+                os.makedirs(self._path)
             with open(
                 os.path.join(self._path, f"{i}.txt"),
                 "w",

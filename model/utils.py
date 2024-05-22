@@ -18,18 +18,58 @@
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
-
+"""
+A module that contains the utility functions for the model training process.
+"""
 import evaluate
 import numpy as np
 import torch
 
-metric = evaluate.load("perplexity")
+metric = evaluate.load("sacrebleu")
+TOKENIZER = None
 
 
-def compute_metrics(eval_pred):
-    logits, labels = eval_pred
-    predictions = np.argmax(logits, axis=-1)
-    return metric.compute(predictions=predictions, references=labels)
+def postprocess_text(preds, labels):
+    """
+    Postprocess the text for the evaluation.
+    Args:
+        preds: The predictions to evaluate.
+        labels: The labels as reference.
+
+    Returns: The postprocessed predictions and labels.
+
+    """
+    preds = [pred.strip() for pred in preds]
+    labels = [[label.strip()] for label in labels]
+
+    return preds, labels
+
+def compute_metrics(eval_preds):
+    """
+    Compute the metrics for the evaluation.
+    Args:
+        eval_preds: The evaluation predictions.
+
+    Returns:
+
+    """
+    preds, labels = eval_preds
+    if isinstance(preds, tuple):
+        preds = preds[0]
+    decoded_preds = TOKENIZER.batch_decode(preds, skip_special_tokens=True)
+
+    labels = np.where(labels != -100, labels, TOKENIZER.pad_token_id)
+    decoded_labels = TOKENIZER.batch_decode(labels, skip_special_tokens=True)
+
+    decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+
+    result = metric.compute(predictions=decoded_preds, references=decoded_labels)
+    result = {"bleu": result["score"]}
+
+    prediction_lens = [np.count_nonzero(pred != TOKENIZER.pad_token_id) for pred in preds]
+    result["gen_len"] = np.mean(prediction_lens)
+    result = {k: round(v, 4) for k, v in result.items()}
+    return result
 
 
 def split_dataset(dataset) -> tuple:

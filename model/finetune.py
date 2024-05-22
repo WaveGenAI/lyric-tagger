@@ -22,28 +22,60 @@
 """
 A module that contain the script to finetune the model.
 """
-
+import torch
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
     Trainer,
-    TrainingArguments,
+    TrainingArguments, DataCollatorForSeq2Seq,
 )
 
 import dataset.llama3_dataset
-import model.utils
+from model import utils
 
-data = dataset.llama3_dataset.Llama3Dataset("data/")
-train_set, val_set = model.utils.split_dataset(data)
+data = dataset.llama3_dataset.Llama3Dataset("data/").load()
+
+
 
 t5model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-small")
 tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-small")
+def _tokenize_function(examples):
+    return tokenizer(
+        examples["lyrics_no_tags"],
+        text_target=examples["lyrics"],
+        padding="max_length",
+        truncation=True,
+        max_length=512,
+    )
 
-training_args = TrainingArguments(output_dir="training", eval_strategy="epoch")
+ds = data.map(_tokenize_function)
+data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=t5model)
+utils.TOKENIZER = tokenizer
+
+BATCH_SIZE = 8
+
+training_args = TrainingArguments(
+    output_dir="training",
+    evaluation_strategy="epoch",
+    per_device_train_batch_size=BATCH_SIZE,
+    per_device_eval_batch_size=BATCH_SIZE,
+    num_train_epochs=6,
+    learning_rate=8e-5,
+    fp16=not torch.cuda.is_bf16_supported(),
+    bf16=torch.cuda.is_bf16_supported(),
+    bf16_full_eval=torch.cuda.is_bf16_supported(),
+    fp16_full_eval=not torch.cuda.is_bf16_supported(),
+    logging_steps=50,
+    optim="adamw_8bit",
+    save_strategy="epoch",
+    lr_scheduler_type="cosine",
+)
+
 trainer = Trainer(
     model=t5model,
     args=training_args,
-    train_dataset=train_set,
-    eval_dataset=val_set,
-    compute_metrics=model.utils.compute_metrics,
+    train_dataset=ds["train"],
+    eval_dataset=ds["test"],
+    data_collator=data_collator,
+    # compute_metrics=model.utils.compute_metrics,
 )

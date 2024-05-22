@@ -33,3 +33,4 @@ class Tag(Enum):
 
     CHORUS = "CHORUS"
     VERSE = "VERSE"
+    BRIDGE = "BRIDGE"
