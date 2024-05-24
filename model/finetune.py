@@ -29,16 +29,38 @@ from transformers import (
     Trainer,
     TrainingArguments, DataCollatorForSeq2Seq,
 )
+from peft import (
+    get_peft_model,
+    LoraConfig,
+    TaskType,
+)
 
 import dataset.llama3_dataset
 from model import utils
+from model. patch import patch
+
+patch()
 
 data = dataset.llama3_dataset.Llama3Dataset("data/").load()
 
-
-
+peft_config = LoraConfig(
+    task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, r=32, lora_alpha=64, lora_dropout=0.1
+)
 t5model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-small")
+
 tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-small")
+special_tokens_to_add = []
+for i in range(1, 5):
+    special_tokens_to_add.append(f"[CHORUS {i}]")
+    special_tokens_to_add.append(f"[VERSE {i}]")
+special_tokens_to_add.append("[BRIDGE 1]")
+special_tokens_to_add.append("\n")
+tokenizer.add_special_tokens({"additional_special_tokens": special_tokens_to_add})
+t5model.resize_token_embeddings(len(tokenizer))
+# t5model = get_peft_model(t5model, peft_config)
+# t5model.print_trainable_parameters()
+
+
 def _tokenize_function(examples):
     return tokenizer(
         examples["lyrics_no_tags"],
@@ -47,6 +69,7 @@ def _tokenize_function(examples):
         truncation=True,
         max_length=512,
     )
+
 
 ds = data.map(_tokenize_function)
 data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=t5model)

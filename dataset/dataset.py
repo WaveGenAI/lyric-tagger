@@ -73,7 +73,7 @@ class LyricsDataset:
             }
         )
 
-        test_size = min(int(len(dataset) * 0.2), 2000)
+        test_size = min(int(len(dataset) * 0.1), 2000)
         dataset = dataset.train_test_split(test_size=test_size)
 
         return dataset

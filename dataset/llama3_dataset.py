@@ -23,7 +23,6 @@
 A module that contains the Flant5 dataset class.
 """
 
-
 import os
 import random
 import typing
@@ -36,8 +35,23 @@ from dataset.dataset import LyricsDataset
 
 
 def _setup_model() -> typing.Tuple[AutoModelForCausalLM, AutoTokenizer]:
-    model = AutoModelForCausalLM.from_pretrained(
-        "unsloth/llama-3-8b-Instruct-bnb-4bit"
+    # model = AutoModelForCausalLM.from_pretrained(
+    #     "unsloth/llama-3-8b-Instruct-bnb-4bit"
+    # )
+    #
+    # tokenizer = AutoTokenizer.from_pretrained("unsloth/llama-3-8b-Instruct-bnb-4bit")
+    # model.generation_config.pad_token_ids = tokenizer.pad_token_id
+    llm = Llama.from_pretrained(
+        repo_id="lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF",
+        filename="*Q4_K_M.gguf",
+        flash_attn=True,
+        n_gpu_layers=-1,
+        n_ctx=2000,
+        use_mlock=False,
+        verbose=False,
+        # draft_model=LlamaPromptLookupDecoding(
+        #     max_ngram_size=3, num_pred_tokens=5
+        # ),  # boost?
     )
 
     tokenizer = AutoTokenizer.from_pretrained("unsloth/llama-3-8b-Instruct-bnb-4bit")
@@ -62,7 +76,11 @@ class Llama3Dataset(LyricsDataset):
     The lyrics should be generated based on the word "{WORD}" and have to contain the word at the 5th word of the lyrics.
     The number of chorus to generate is {NB_CHORUS}.
     The number of verse to generate is {NB_VERSE}.
-    The number of bridge to generate is {NB_BRIDGE}.
+    The number of bridge to generate is {NB_BRIDGE} where ever you want.
+    You start with a {START}.
+    The number of line for the VERSES is {VERSE_LINES}.
+    The number of line for the CHORUS is {CHORUS_LINES}.
+    {ONOMATOPOEIA}
     """
 
     def __init__(self, path: str) -> None:
@@ -111,6 +129,9 @@ class Llama3Dataset(LyricsDataset):
         for i in range(nb_gen):
             # add word to obtain different lyrics each time
             word = " ".join(self._word_generator.get_random_word() for _ in range(1))
+            start = "CHORUS" if random.random() >= 0.5 else "VERSE"
+            onomatopoeia = ("Add some (not too much) onomatopoeia to the lyrics (in verse, chorus, and out verse, "
+                            "chorus and bridge).") if random.random() >= 0.75 else ""
             messages = [
                 {
                     "role": "system",
@@ -121,9 +142,13 @@ class Llama3Dataset(LyricsDataset):
                     "content": self.PROMPT.format(
                         TAGS=tags,
                         WORD=word,
-                        NB_CHORUS=random.randint(2, 4),
-                        NB_VERSE=random.randint(2, 4),
-                        NB_BRIDGE=random.randint(0, 1)
+                        NB_CHORUS=random.choices(population=[1, 2, 3, 4], weights=[0.1, 0.2, 0.3, 0.4], ),
+                        NB_VERSE=random.choices(population=[1, 2, 3, 4], weights=[0.1, 0.2, 0.3, 0.4], ),
+                        NB_BRIDGE=random.randint(0, 1),
+                        START=start,
+                        VERSE_LINES=random.randint(2, 12),
+                        CHORUS_LINES=random.randint(2, 12),
+                        ONOMATOPOEIA=onomatopoeia,
                     ),
                 },
             ]

@@ -4,3 +4,5 @@ bitsandbytes
 accelerate
 random-word
 evaluate
+sacrebleu
+peft

@@ -56,6 +56,8 @@ def compute_metrics(eval_preds):
     preds, labels = eval_preds
     if isinstance(preds, tuple):
         preds = preds[0]
+
+    preds = np.argmax(preds, axis=-1)
     decoded_preds = TOKENIZER.batch_decode(preds, skip_special_tokens=True)
 
     labels = np.where(labels != -100, labels, TOKENIZER.pad_token_id)
